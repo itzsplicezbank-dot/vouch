@@ -9,13 +9,11 @@ app.use(express.json());
 app.use(express.static("public"));
 app.set("trust proxy", true);
 
-// rate limit
 app.use(rateLimit({
   windowMs: 60 * 1000,
   max: 30
 }));
 
-// DB
 const db = new sqlite3.Database("./database.sqlite");
 
 db.run(`
@@ -28,7 +26,6 @@ CREATE TABLE IF NOT EXISTS vouches (
 )
 `);
 
-// normalize username
 function cleanUser(u) {
   return (u || "")
     .toLowerCase()
@@ -36,7 +33,6 @@ function cleanUser(u) {
     .trim();
 }
 
-// VOUCH
 app.post("/vouch", (req, res) => {
   const username = cleanUser(req.body.username);
   const ip = req.ip;
@@ -64,7 +60,6 @@ app.post("/vouch", (req, res) => {
   );
 });
 
-// GET USER VOUCH COUNT
 app.get("/user/:name", (req, res) => {
   const username = cleanUser(req.params.name);
 
@@ -76,6 +71,31 @@ app.get("/user/:name", (req, res) => {
         username: "@" + username,
         vouches: row?.count || 0
       });
+    }
+  );
+});
+
+app.get("/leaderboard", (req, res) => {
+  db.all(
+    `
+    SELECT username, COUNT(*) as vouches
+    FROM vouches
+    GROUP BY username
+    ORDER BY vouches DESC
+    LIMIT 10
+    `,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.json([]);
+      }
+
+      res.json(
+        rows.map(r => ({
+          username: "@" + r.username,
+          vouches: r.vouches
+        }))
+      );
     }
   );
 });
