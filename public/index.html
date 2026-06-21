@@ -6,12 +6,15 @@
 <title>Vouch System</title>
 
 <style>
-body {
+/* GLOBAL LOCK */
+html, body {
   margin: 0;
   background: #000;
   color: white;
   font-family: Arial, Helvetica, sans-serif;
   padding: 20px;
+  overflow-x: hidden; /* 🚫 disables left/right scroll */
+  box-sizing: border-box;
 }
 
 /* TOP BANNER */
@@ -24,27 +27,32 @@ body {
   text-align: center;
   font-weight: bold;
   margin-bottom: 20px;
+  box-sizing: border-box;
 }
 
 /* MAIN LAYOUT */
 .container {
   display: flex;
   gap: 20px;
-  width: 950px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 950px;
   margin: auto;
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* allows stacking instead of overflow */
+  box-sizing: border-box;
 }
 
+/* PANELS */
 .panel {
   flex: 1;
+  min-width: 280px;
   background: #0e0e0e;
   padding: 24px;
   border-radius: 12px;
   border: 1px solid #222;
-  min-width: 300px;
+  box-sizing: border-box;
 }
 
+/* TEXT */
 h1, h2 {
   text-align: center;
   margin-bottom: 10px;
@@ -64,6 +72,7 @@ h1, h2 {
   margin-bottom: 10px;
 }
 
+/* INPUTS */
 input {
   width: 100%;
   padding: 12px;
@@ -73,8 +82,10 @@ input {
   color: white;
   border-radius: 8px;
   outline: none;
+  box-sizing: border-box;
 }
 
+/* BUTTONS */
 button {
   width: 100%;
   margin-top: 10px;
@@ -90,6 +101,7 @@ button:hover {
   opacity: 0.85;
 }
 
+/* RESULT BOX */
 .result {
   margin-top: 15px;
   padding: 12px;
@@ -98,8 +110,10 @@ button:hover {
   border-radius: 10px;
   text-align: center;
   min-height: 40px;
+  box-sizing: border-box;
 }
 
+/* LEADERBOARD */
 .lb-item {
   display: flex;
   justify-content: space-between;
@@ -126,6 +140,7 @@ button:hover {
   font-weight: bold;
 }
 
+/* REFRESH BUTTON */
 .refresh {
   margin-top: 10px;
   background: #111;
@@ -141,7 +156,7 @@ button:hover {
 
 <body>
 
-<!-- TOP BANNER (FULL WIDTH) -->
+<!-- TOP BANNER -->
 <div id="banner">Loading banner...</div>
 
 <div class="container">
@@ -180,7 +195,7 @@ button:hover {
 
 <script>
 
-// ---------------- BANNER ----------------
+/* ---------------- BANNER ---------------- */
 async function loadBanner() {
   const res = await fetch("/banner");
   const data = await res.json();
@@ -189,7 +204,7 @@ async function loadBanner() {
 
 loadBanner();
 
-// ---------------- VOUCH ----------------
+/* ---------------- VOUCH ---------------- */
 async function vouch() {
   const username = document.getElementById("vouchUser").value;
 
@@ -205,7 +220,7 @@ async function vouch() {
   loadLeaderboard();
 }
 
-// ---------------- CHECK ----------------
+/* ---------------- CHECK ---------------- */
 async function check() {
   const username = document.getElementById("checkUser").value;
 
@@ -216,7 +231,7 @@ async function check() {
     `<b>${data.username}</b><br><br>${data.vouches} vouches`;
 }
 
-// ---------------- LEADERBOARD ----------------
+/* ---------------- LEADERBOARD ---------------- */
 async function loadLeaderboard() {
   const res = await fetch("/leaderboard");
   const data = await res.json();
