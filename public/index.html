@@ -8,44 +8,47 @@
   <style>
     body {
       margin: 0;
-      background: radial-gradient(circle at top, #0a0a0a, #000);
+      background: #000;
       color: white;
       font-family: Arial, Helvetica, sans-serif;
-      min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
+      min-height: 100vh;
       padding: 20px;
     }
 
-    .box {
-      width: 420px;
-      background: #0e0e0e;
-      padding: 28px;
-      border-radius: 18px;
-      box-shadow: 0 0 30px rgba(255,255,255,0.06);
-      position: relative;
+    .container {
+      display: flex;
+      gap: 20px;
+      width: 900px;
+      max-width: 100%;
     }
 
-    h1 {
+    .panel {
+      flex: 1;
+      background: #0e0e0e;
+      padding: 24px;
+      border-radius: 12px;
+    }
+
+    h1, h2 {
       text-align: center;
-      margin-bottom: 6px;
-      letter-spacing: 1px;
+      margin-bottom: 10px;
     }
 
     .subtitle {
       text-align: center;
       font-size: 13px;
       color: #aaa;
-      margin-bottom: 18px;
-      line-height: 1.4;
+      margin-bottom: 15px;
     }
 
     .hint {
-      font-size: 12px;
-      color: #888;
       text-align: center;
-      margin-bottom: 15px;
+      font-size: 12px;
+      color: #777;
+      margin-bottom: 10px;
     }
 
     input {
@@ -55,12 +58,8 @@
       background: #000;
       border: 1px solid #2a2a2a;
       color: white;
-      border-radius: 10px;
+      border-radius: 8px;
       outline: none;
-    }
-
-    input:focus {
-      border-color: #555;
     }
 
     button {
@@ -69,77 +68,95 @@
       padding: 12px;
       background: white;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       font-weight: bold;
       cursor: pointer;
-      transition: 0.2s;
     }
 
     button:hover {
       opacity: 0.85;
-      transform: translateY(-1px);
     }
 
     .result {
-      margin-top: 18px;
-      padding: 14px;
+      margin-top: 15px;
+      padding: 12px;
       background: #000;
       border: 1px solid #222;
-      border-radius: 12px;
+      border-radius: 10px;
       text-align: center;
       min-height: 40px;
     }
 
-    .line {
-      height: 1px;
-      background: #222;
-      margin: 20px 0;
+    .lb-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px;
+      border-bottom: 1px solid #1d1d1d;
+      font-size: 13px;
     }
 
-    .footer {
-      margin-top: 18px;
-      text-align: center;
-      font-size: 12px;
-      color: #666;
+    .lb-item:last-child {
+      border-bottom: none;
     }
 
-    .footer span {
+    .lb-rank {
+      width: 30px;
+      color: #777;
+    }
+
+    .lb-user {
+      flex: 1;
+    }
+
+    .lb-score {
       color: #aaa;
+      font-weight: bold;
+    }
+
+    .refresh {
+      margin-top: 10px;
+      background: #111;
+      border: 1px solid #222;
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
     }
   </style>
 </head>
 
 <body>
 
-<div class="box">
+<div class="container">
 
-  <h1>Vouch System</h1>
+  <div class="panel">
+    <h1>Vouch System</h1>
 
-  <div class="subtitle">
-    Build sprite reputation by vouching users using their Discord usernames
+    <div class="subtitle">Build sprite reputation by vouching users</div>
+    <div class="hint">@username format</div>
+
+    <input id="vouchUser" placeholder="@username">
+    <button onclick="vouch()">Vouch</button>
+
+    <input id="checkUser" placeholder="@checkuser">
+    <button onclick="check()">Check</button>
+
+    <div class="result" id="result">Ready</div>
   </div>
 
-  <div class="hint">
-    Use format: <b>@discordname</b>
-  </div>
+  <div class="panel">
+    <h2>Top 10 Leaderboard</h2>
 
-  <input id="vouchUser" placeholder="@username">
-  <button onclick="vouch()">Send Vouch</button>
+    <div id="leaderboardList">Loading...</div>
 
-  <div class="line"></div>
-
-  <input id="checkUser" placeholder="@checkuser">
-  <button onclick="check()">Check Vouches</button>
-
-  <div class="result" id="result">Ready</div>
-
-  <div class="footer">
-    created by <span>@Itzsplicez</span>
+    <button class="refresh" onclick="loadLeaderboard()">Refresh</button>
   </div>
 
 </div>
 
 <script>
+
 async function vouch() {
   const username = document.getElementById("vouchUser").value;
 
@@ -151,6 +168,8 @@ async function vouch() {
 
   const data = await res.json();
   document.getElementById("result").innerText = data.message;
+
+  loadLeaderboard();
 }
 
 async function check() {
@@ -160,8 +179,31 @@ async function check() {
   const data = await res.json();
 
   document.getElementById("result").innerHTML =
-    `<b>${data.username}</b><br><br> ${data.vouches} Vouches`;
+    `<b>${data.username}</b><br><br>${data.vouches} vouches`;
 }
+
+async function loadLeaderboard() {
+  const res = await fetch("/leaderboard");
+  const data = await res.json();
+
+  const el = document.getElementById("leaderboardList");
+
+  if (!data.length) {
+    el.innerHTML = "<div class='lb-item'>No data</div>";
+    return;
+  }
+
+  el.innerHTML = data.map((u, i) => `
+    <div class="lb-item">
+      <div class="lb-rank">#${i + 1}</div>
+      <div class="lb-user">${u.username}</div>
+      <div class="lb-score">${u.vouches}</div>
+    </div>
+  `).join("");
+}
+
+loadLeaderboard();
+
 </script>
 
 </body>
