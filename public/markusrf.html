@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel</title>
 
 <style>
@@ -17,7 +17,7 @@ body {
 }
 
 .container {
-  width: 650px;
+  width: 700px;
   max-width: 100%;
   display: flex;
   flex-direction: column;
@@ -33,23 +33,23 @@ body {
 
 h1 {
   text-align: center;
-  margin: 0 0 10px;
+  margin: 0;
 }
 
 h2 {
-  margin: 0 0 10px;
+  margin-bottom: 10px;
   font-size: 16px;
   color: #ccc;
 }
 
-textarea, input[type="file"] {
+textarea, input[type="file"], input[type="text"] {
   width: 100%;
+  padding: 12px;
+  margin-top: 10px;
   background: #000;
   color: #fff;
   border: 1px solid #333;
   border-radius: 8px;
-  padding: 12px;
-  margin-top: 10px;
   outline: none;
 }
 
@@ -58,6 +58,7 @@ button {
   margin-top: 10px;
   padding: 12px;
   background: #fff;
+  color: #000;
   border: none;
   border-radius: 8px;
   font-weight: bold;
@@ -80,6 +81,14 @@ button:hover {
   color: #aaa;
   min-height: 18px;
 }
+
+.word-list {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.4;
+  word-break: break-word;
+}
 </style>
 </head>
 
@@ -87,6 +96,7 @@ button:hover {
 
 <div class="container">
 
+  <!-- HEADER -->
   <div class="card">
     <h1>Admin Panel</h1>
     <div id="msg"></div>
@@ -96,7 +106,7 @@ button:hover {
   <div class="card">
     <h2>Live Banner Editor</h2>
 
-    <textarea id="banner" rows="3" placeholder="Banner text..."></textarea>
+    <textarea id="banner" rows="3" placeholder="Edit banner text..."></textarea>
 
     <button onclick="saveBanner()">Save Banner</button>
   </div>
@@ -104,8 +114,9 @@ button:hover {
   <!-- EXPORT -->
   <div class="card">
     <h2>Export Database</h2>
-    <p style="font-size:12px;color:#888;">
-      Downloads full vouch database as <b>users.txt</b>
+
+    <p style="font-size:12px;color:#777;">
+      Downloads full database as users.txt
     </p>
 
     <button class="small-btn" onclick="downloadData()">
@@ -117,36 +128,45 @@ button:hover {
   <div class="card">
     <h2>Import users.txt (FULL RESET)</h2>
 
-    <p style="font-size:12px;color:#888;">
-      This will DELETE current database and replace it with uploaded file.
+    <p style="font-size:12px;color:#777;">
+      WARNING: This will replace all current data.
     </p>
 
-    <input type="file" id="file" accept=".txt"/>
+    <input type="file" id="file" accept=".txt">
 
     <button onclick="uploadFile()">
       Upload & Replace Database
     </button>
   </div>
 
+  <!-- BAD WORDS -->
+  <div class="card">
+    <h2>Bad Words Filter</h2>
+
+    <input type="text" id="wordInput" placeholder="Enter word..." />
+
+    <button onclick="addWord()">Add Word</button>
+    <button onclick="removeWord()">Remove Word</button>
+
+    <div class="word-list" id="wordList">Loading...</div>
+  </div>
+
 </div>
 
 <script>
 
-// ---------------- MESSAGE ----------------
 function setMsg(text) {
   document.getElementById("msg").innerText = text;
 }
 
-// ---------------- LOAD BANNER ----------------
+/* ---------------- BANNER ---------------- */
+
 async function loadBanner() {
   const res = await fetch("/banner");
   const data = await res.json();
   document.getElementById("banner").value = data.text || "";
 }
 
-loadBanner();
-
-// ---------------- SAVE BANNER ----------------
 async function saveBanner() {
   const text = document.getElementById("banner").value;
 
@@ -160,17 +180,21 @@ async function saveBanner() {
   setMsg(data.message);
 }
 
-// ---------------- DOWNLOAD ----------------
+loadBanner();
+
+/* ---------------- EXPORT ---------------- */
+
 function downloadData() {
   window.location.href = "/admin/export";
 }
 
-// ---------------- UPLOAD ----------------
+/* ---------------- IMPORT ---------------- */
+
 async function uploadFile() {
   const file = document.getElementById("file").files[0];
 
   if (!file) {
-    setMsg("Please select a file");
+    setMsg("Select a file first");
     return;
   }
 
@@ -185,6 +209,46 @@ async function uploadFile() {
   const data = await res.json();
   setMsg(data.message);
 }
+
+/* ---------------- BAD WORDS ---------------- */
+
+async function loadWords() {
+  const res = await fetch("/admin/badwords");
+  const data = await res.json();
+
+  document.getElementById("wordList").innerText =
+    "Current: " + (data.words.join(", ") || "none");
+}
+
+async function addWord() {
+  const word = document.getElementById("wordInput").value;
+
+  const res = await fetch("/admin/badwords/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ word })
+  });
+
+  await res.json();
+  document.getElementById("wordInput").value = "";
+  loadWords();
+}
+
+async function removeWord() {
+  const word = document.getElementById("wordInput").value;
+
+  const res = await fetch("/admin/badwords/remove", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ word })
+  });
+
+  await res.json();
+  document.getElementById("wordInput").value = "";
+  loadWords();
+}
+
+loadWords();
 
 </script>
 
