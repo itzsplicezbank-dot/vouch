@@ -15,13 +15,12 @@ app.use(rateLimit({
   max: 30
 }));
 
-/* allow raw text uploads for import */
-app.use("/admin/import", express.text({ type: "*/*", limit: "5mb" }));
+app.use("/admin/import", express.text({ type: "*/*", limit: "10mb" }));
 
 /* ---------------- DB ---------------- */
 const db = new sqlite3.Database("./database.sqlite");
 
-/* ---------------- LIVE DATA ---------------- */
+/* ---------------- LIVE STATE ---------------- */
 let bannerText = "Welcome! Promote your stuff here.";
 
 let BAD_WORDS = ["badword1", "badword2", "slurhere"];
@@ -48,7 +47,7 @@ function containsBadWord(text) {
 }
 
 /* =========================================================
-   BANNER SYSTEM
+   BANNER
 ========================================================= */
 
 app.get("/banner", (req, res) => {
@@ -63,12 +62,11 @@ app.post("/admin/banner", (req, res) => {
   }
 
   bannerText = text;
-
   res.json({ success: true, message: "Banner updated" });
 });
 
 /* =========================================================
-   VOUCH SYSTEM
+   VOUCH
 ========================================================= */
 
 app.post("/vouch", (req, res) => {
@@ -141,30 +139,33 @@ app.get("/leaderboard", (req, res) => {
 });
 
 /* =========================================================
-   EXPORT users.txt
+   EXPORT (USERS + BADWORDS)
 ========================================================= */
 
 app.get("/admin/export", (req, res) => {
-  db.all(
-    `SELECT * FROM vouches ORDER BY created DESC`,
-    [],
-    (err, rows) => {
-      let txt = "";
+  db.all(`SELECT * FROM vouches ORDER BY created DESC`, [], (err, rows) => {
 
-      rows.forEach(r => {
-        txt += `${r.username}::${r.ip}::${r.created}\n`;
-      });
+    let txt = "#USERS\n";
 
-      res.setHeader("Content-Type", "text/plain");
-      res.setHeader("Content-Disposition", "attachment; filename=users.txt");
+    rows.forEach(r => {
+      txt += `${r.username}::${r.ip}::${r.created}\n`;
+    });
 
-      res.send(txt);
-    }
-  );
+    txt += "\n#BADWORDS\n";
+
+    BAD_WORDS.forEach(w => {
+      txt += `${w}\n`;
+    });
+
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Disposition", "attachment; filename=data.txt");
+
+    res.send(txt);
+  });
 });
 
 /* =========================================================
-   IMPORT users.txt (FULL RESET BASELINE)
+   IMPORT (FULL RESTORE)
 ========================================================= */
 
 app.post("/admin/import", (req, res) => {
@@ -174,21 +175,44 @@ app.post("/admin/import", (req, res) => {
     return res.json({ success: false, message: "Empty file" });
   }
 
+  const lines = text.split("\n").map(l => l.trim());
+
+  let mode = null;
+  const users = [];
+  const badwords = [];
+
+  for (const line of lines) {
+    if (line === "#USERS") {
+      mode = "users";
+      continue;
+    }
+
+    if (line === "#BADWORDS") {
+      mode = "badwords";
+      continue;
+    }
+
+    if (!line) continue;
+
+    if (mode === "users") {
+      users.push(line);
+    }
+
+    if (mode === "badwords") {
+      badwords.push(line.toLowerCase());
+    }
+  }
+
   db.run(`DELETE FROM vouches`, [], (err) => {
     if (err) {
       return res.json({ success: false, message: "Reset failed" });
     }
 
-    const lines = text
-      .split("\n")
-      .map(l => l.trim())
-      .filter(Boolean);
-
     const stmt = db.prepare(
       `INSERT INTO vouches(username, ip, created) VALUES (?, ?, ?)`
     );
 
-    for (const line of lines) {
+    for (const line of users) {
       const parts = line.split("::");
       if (parts.length < 3) continue;
 
@@ -201,12 +225,17 @@ app.post("/admin/import", (req, res) => {
 
     stmt.finalize();
 
-    res.json({ success: true, message: "Imported baseline" });
+    BAD_WORDS = badwords;
+
+    res.json({
+      success: true,
+      message: "Full restore complete"
+    });
   });
 });
 
 /* =========================================================
-   BAD WORD SYSTEM (LIVE EDITABLE)
+   BAD WORD SYSTEM (LIVE)
 ========================================================= */
 
 app.get("/admin/badwords", (req, res) => {
@@ -217,7 +246,7 @@ app.post("/admin/badwords/add", (req, res) => {
   const word = (req.body.word || "").toLowerCase().trim();
 
   if (!word) {
-    return res.json({ success: false, message: "Empty word" });
+    return res.json({ success: false });
   }
 
   if (!BAD_WORDS.includes(word)) {
@@ -236,7 +265,7 @@ app.post("/admin/badwords/remove", (req, res) => {
 });
 
 /* =========================================================
-   START SERVER
+   START
 ========================================================= */
 
 app.listen(PORT, () => {
