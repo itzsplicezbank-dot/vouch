@@ -5,7 +5,6 @@ const rateLimit = require("express-rate-limit");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-/* ---------------- MIDDLEWARE ---------------- */
 app.use(express.json());
 app.use(express.static("public"));
 app.set("trust proxy", true);
@@ -17,15 +16,12 @@ app.use(rateLimit({
 
 app.use("/admin/import", express.text({ type: "*/*", limit: "10mb" }));
 
-/* ---------------- DB ---------------- */
 const db = new sqlite3.Database("./database.sqlite");
 
-/* ---------------- LIVE STATE ---------------- */
 let bannerText = "Welcome! Sprite Trade Info stuff here.";
 
 let BAD_WORDS = ["badword1", "badword2", "slurhere"];
 
-/* ---------------- TABLE ---------------- */
 db.run(`
 CREATE TABLE IF NOT EXISTS vouches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,19 +32,84 @@ CREATE TABLE IF NOT EXISTS vouches (
 )
 `);
 
-/* ---------------- HELPERS ---------------- */
 function cleanUser(u) {
   return (u || "").toLowerCase().replace("@", "").trim();
 }
 
-function containsBadWord(text) {
-  const t = (text || "").toLowerCase();
-  return BAD_WORDS.some(w => t.includes(w));
+const LEET_MAP = {
+  "0": "o",
+  "1": "i",
+  "l": "i",
+  "3": "e",
+  "4": "a",
+  "5": "s",
+  "7": "t",
+  "@": "a",
+  "$": "s"
+};
+
+function normalizeText(text) {
+  if (!text) return "";
+  let t = text.toLowerCase();
+
+  t = t.split("").map(ch => LEET_MAP[ch] || ch).join("");
+
+  t = t.replace(/[^a-z]/g, "");
+
+  t = t.replace(/(.)\1+/g, "$1");
+
+  return t;
 }
 
-/* =========================================================
-   BANNER
-========================================================= */
+function levenshteinWithin(a, b, maxDist) {
+  if (Math.abs(a.length - b.length) > maxDist) return false;
+
+  const dp = Array(b.length + 1);
+
+  for (let j = 0; j <= b.length; j++) dp[j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+
+    let minRow = dp[0];
+
+    for (let j = 1; j <= b.length; j++) {
+      const temp = dp[j];
+
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+
+      dp[j] = Math.min(
+        dp[j] + 1,
+        dp[j - 1] + 1,
+        prev + cost
+      );
+
+      prev = temp;
+      minRow = Math.min(minRow, dp[j]);
+    }
+
+    if (minRow > maxDist) return false;
+  }
+
+  return dp[b.length] <= maxDist;
+}
+
+function containsBadWord(text) {
+  const clean = normalizeText(text);
+
+  for (const word of BAD_WORDS) {
+    const bad = normalizeText(word);
+
+    if (!bad) continue;
+
+    if (clean.includes(bad)) return true;
+
+    if (levenshteinWithin(clean, bad, 2)) return true;
+  }
+
+  return false;
+}
 
 app.get("/banner", (req, res) => {
   res.json({ text: bannerText });
@@ -64,10 +125,6 @@ app.post("/admin/banner", (req, res) => {
   bannerText = text;
   res.json({ success: true, message: "Banner updated" });
 });
-
-/* =========================================================
-   VOUCH
-========================================================= */
 
 app.post("/vouch", (req, res) => {
   const username = cleanUser(req.body.username);
@@ -94,10 +151,6 @@ app.post("/vouch", (req, res) => {
   );
 });
 
-/* =========================================================
-   USER CHECK
-========================================================= */
-
 app.get("/user/:name", (req, res) => {
   const username = cleanUser(req.params.name);
 
@@ -112,10 +165,6 @@ app.get("/user/:name", (req, res) => {
     }
   );
 });
-
-/* =========================================================
-   LEADERBOARD
-========================================================= */
 
 app.get("/leaderboard", (req, res) => {
   db.all(
@@ -138,10 +187,6 @@ app.get("/leaderboard", (req, res) => {
   );
 });
 
-/* =========================================================
-   EXPORT (USERS + BADWORDS)
-========================================================= */
-
 app.get("/admin/export", (req, res) => {
   db.all(`SELECT * FROM vouches ORDER BY created DESC`, [], (err, rows) => {
 
@@ -163,10 +208,6 @@ app.get("/admin/export", (req, res) => {
     res.send(txt);
   });
 });
-
-/* =========================================================
-   IMPORT (FULL RESTORE)
-========================================================= */
 
 app.post("/admin/import", (req, res) => {
   const text = req.body;
@@ -194,13 +235,8 @@ app.post("/admin/import", (req, res) => {
 
     if (!line) continue;
 
-    if (mode === "users") {
-      users.push(line);
-    }
-
-    if (mode === "badwords") {
-      badwords.push(line.toLowerCase());
-    }
+    if (mode === "users") users.push(line);
+    if (mode === "badwords") badwords.push(line.toLowerCase());
   }
 
   db.run(`DELETE FROM vouches`, [], (err) => {
@@ -234,10 +270,6 @@ app.post("/admin/import", (req, res) => {
   });
 });
 
-/* =========================================================
-   BAD WORD SYSTEM (LIVE)
-========================================================= */
-
 app.get("/admin/badwords", (req, res) => {
   res.json({ words: BAD_WORDS });
 });
@@ -263,10 +295,6 @@ app.post("/admin/badwords/remove", (req, res) => {
 
   res.json({ success: true, words: BAD_WORDS });
 });
-
-/* =========================================================
-   START
-========================================================= */
 
 app.listen(PORT, () => {
   console.log("Server running on port " + PORT);
