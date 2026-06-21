@@ -27,10 +27,7 @@ CREATE TABLE IF NOT EXISTS vouches (
 `);
 
 function cleanUser(u) {
-  return (u || "")
-    .toLowerCase()
-    .replace("@", "")
-    .trim();
+  return (u || "").toLowerCase().replace("@", "").trim();
 }
 
 app.post("/vouch", (req, res) => {
@@ -46,16 +43,10 @@ app.post("/vouch", (req, res) => {
     [username, ip],
     function (err) {
       if (err) {
-        return res.json({
-          success: false,
-          message: "You already vouched this user"
-        });
+        return res.json({ success: false, message: "Already vouched" });
       }
 
-      res.json({
-        success: true,
-        message: "Vouch added"
-      });
+      res.json({ success: true, message: "Vouch added" });
     }
   );
 });
@@ -86,9 +77,7 @@ app.get("/leaderboard", (req, res) => {
     `,
     [],
     (err, rows) => {
-      if (err) {
-        return res.json([]);
-      }
+      if (err) return res.json([]);
 
       res.json(
         rows.map(r => ({
