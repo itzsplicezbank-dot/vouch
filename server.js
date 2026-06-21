@@ -14,15 +14,14 @@ app.use(rateLimit({
   max: 30
 }));
 
+// allow raw text uploads for import
+app.use("/admin/import", express.text({ type: "*/*", limit: "5mb" }));
+
 const db = new sqlite3.Database("./database.sqlite");
 
-const BAD_WORDS = [
-  "badword1",
-  "badword2",
-  "slurhere"
-];
-
 let bannerText = "Welcome! Promote your stuff here.";
+
+const BAD_WORDS = ["badword1", "badword2", "slurhere"];
 
 db.run(`
 CREATE TABLE IF NOT EXISTS vouches (
@@ -35,220 +34,150 @@ CREATE TABLE IF NOT EXISTS vouches (
 `);
 
 function cleanUser(u) {
-  return (u || "")
-    .toLowerCase()
-    .replace("@", "")
-    .trim();
+  return (u || "").toLowerCase().replace("@", "").trim();
 }
 
 function containsBadWord(text) {
-  return BAD_WORDS.some(word =>
-    text.includes(word.toLowerCase())
-  );
+  return BAD_WORDS.some(w => text.includes(w));
 }
 
+/* ---------------- BANNER ---------------- */
 
-// GET BANNER
 app.get("/banner", (req, res) => {
-  res.json({
-    text: bannerText
-  });
+  res.json({ text: bannerText });
 });
 
-
-// UPDATE BANNER
 app.post("/admin/banner", (req, res) => {
-
-  const text = req.body.text;
-
-  if (!text) {
-    return res.json({
-      success:false,
-      message:"Empty banner"
-    });
+  if (!req.body.text) {
+    return res.json({ success: false, message: "Empty banner" });
   }
 
-  bannerText = text;
+  bannerText = req.body.text;
 
-  res.json({
-    success:true,
-    message:"Banner updated"
-  });
-
+  res.json({ success: true, message: "Banner updated" });
 });
 
+/* ---------------- VOUCH ---------------- */
 
-// ADD VOUCH
 app.post("/vouch", (req, res) => {
-
   const username = cleanUser(req.body.username);
   const ip = req.ip;
 
-
   if (!username) {
-    return res.json({
-      success:false,
-      message:"Enter username"
-    });
+    return res.json({ success: false, message: "Enter username" });
   }
-
 
   if (containsBadWord(username)) {
-    return res.json({
-      success:false,
-      message:"Username contains blocked words"
-    });
+    return res.json({ success: false, message: "Blocked username" });
   }
 
-
   db.run(
-    `
-    INSERT INTO vouches(username, ip)
-    VALUES (?,?)
-    `,
-    [
-      username,
-      ip
-    ],
-
-    function(err){
-
-      if(err){
-        return res.json({
-          success:false,
-          message:"Already vouched"
-        });
+    `INSERT INTO vouches(username, ip) VALUES (?, ?)`,
+    [username, ip],
+    function (err) {
+      if (err) {
+        return res.json({ success: false, message: "Already vouched" });
       }
 
-
-      res.json({
-        success:true,
-        message:"Vouch added"
-      });
-
+      res.json({ success: true, message: "Vouch added" });
     }
   );
-
 });
 
+/* ---------------- CHECK USER ---------------- */
 
-// CHECK USER
-app.get("/user/:name",(req,res)=>{
+app.get("/user/:name", (req, res) => {
+  const username = cleanUser(req.params.name);
 
-const username = cleanUser(req.params.name);
-
-
-db.get(
-`
-SELECT COUNT(*) as count
-FROM vouches
-WHERE username=?
-`,
-[username],
-
-(err,row)=>{
-
-res.json({
-username:"@"+username,
-vouches:row?.count || 0
+  db.get(
+    `SELECT COUNT(*) as count FROM vouches WHERE username=?`,
+    [username],
+    (err, row) => {
+      res.json({
+        username: "@" + username,
+        vouches: row?.count || 0
+      });
+    }
+  );
 });
 
+/* ---------------- LEADERBOARD ---------------- */
+
+app.get("/leaderboard", (req, res) => {
+  db.all(
+    `SELECT username, COUNT(*) as vouches
+     FROM vouches
+     GROUP BY username
+     ORDER BY vouches DESC
+     LIMIT 10`,
+    [],
+    (err, rows) => {
+      if (err) return res.json([]);
+
+      res.json(
+        rows.map(r => ({
+          username: "@" + r.username,
+          vouches: r.vouches
+        }))
+      );
+    }
+  );
 });
 
+/* ---------------- EXPORT users.txt ---------------- */
+
+app.get("/admin/export", (req, res) => {
+  db.all(`SELECT * FROM vouches ORDER BY created DESC`, [], (err, rows) => {
+    let txt = "";
+
+    rows.forEach(r => {
+      txt += `${r.username}::${r.ip}::${r.created}\n`;
+    });
+
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Content-Disposition", "attachment; filename=users.txt");
+
+    res.send(txt);
+  });
 });
 
+/* ---------------- IMPORT users.txt (BASELINE RESET) ---------------- */
 
-// LEADERBOARD
-app.get("/leaderboard",(req,res)=>{
+app.post("/admin/import", (req, res) => {
+  const text = req.body;
 
+  if (!text) {
+    return res.json({ success: false, message: "Empty file" });
+  }
 
-db.all(
-`
-SELECT username, COUNT(*) as vouches
-FROM vouches
-GROUP BY username
-ORDER BY vouches DESC
-LIMIT 10
-`,
-[],
+  db.run(`DELETE FROM vouches`, [], (err) => {
+    if (err) {
+      return res.json({ success: false, message: "Reset failed" });
+    }
 
-(err,rows)=>{
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-if(err)
-return res.json([]);
+    const stmt = db.prepare(
+      `INSERT INTO vouches(username, ip, created) VALUES (?, ?, ?)`
+    );
 
+    for (const line of lines) {
+      const parts = line.split("::");
+      if (parts.length < 3) continue;
 
-res.json(
-rows.map(r=>({
-username:"@"+r.username,
-vouches:r.vouches
-}))
-);
+      const username = parts[0];
+      const ip = parts[1];
+      const created = parts.slice(2).join("::");
 
+      stmt.run(username, ip, created);
+    }
+
+    stmt.finalize();
+
+    res.json({ success: true, message: "Imported baseline" });
+  });
 });
 
-
-});
-
-
-
-// EXPORT TXT
-app.get("/admin/export",(req,res)=>{
-
-
-db.all(
-`
-SELECT *
-FROM vouches
-ORDER BY created DESC
-`,
-[],
-
-(err,rows)=>{
-
-
-let txt="VOUCH DATABASE\n\n";
-
-
-rows.forEach(row=>{
-
-txt +=
-`User: @${row.username}
-IP: ${row.ip}
-Date: ${row.created}
-
-----------------
-
-`;
-
-});
-
-
-res.setHeader(
-"Content-Type",
-"text/plain"
-);
-
-res.setHeader(
-"Content-Disposition",
-"attachment; filename=vouches.txt"
-);
-
-
-res.send(txt);
-
-
-});
-
-
-});
-
-
-
-app.listen(PORT,()=>{
-
-console.log(
-"Server running on port "+PORT
-);
-
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
