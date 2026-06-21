@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Admin Panel</title>
+
+<style>
+body {
+  margin: 0;
+  background: #000;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.container {
+  width: 650px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+h1 {
+  text-align: center;
+  margin: 0 0 10px;
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: #ccc;
+}
+
+textarea, input[type="file"] {
+  width: 100%;
+  background: #000;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  outline: none;
+}
+
+button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  background: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+.small-btn {
+  background: #1a1a1a;
+  color: #fff;
+  border: 1px solid #333;
+}
+
+#msg {
+  text-align: center;
+  font-size: 13px;
+  color: #aaa;
+  min-height: 18px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="card">
+    <h1>Admin Panel</h1>
+    <div id="msg"></div>
+  </div>
+
+  <!-- BANNER -->
+  <div class="card">
+    <h2>Live Banner Editor</h2>
+
+    <textarea id="banner" rows="3" placeholder="Banner text..."></textarea>
+
+    <button onclick="saveBanner()">Save Banner</button>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="card">
+    <h2>Export Database</h2>
+    <p style="font-size:12px;color:#888;">
+      Downloads full vouch database as <b>users.txt</b>
+    </p>
+
+    <button class="small-btn" onclick="downloadData()">
+      Download users.txt
+    </button>
+  </div>
+
+  <!-- IMPORT -->
+  <div class="card">
+    <h2>Import users.txt (FULL RESET)</h2>
+
+    <p style="font-size:12px;color:#888;">
+      This will DELETE current database and replace it with uploaded file.
+    </p>
+
+    <input type="file" id="file" accept=".txt"/>
+
+    <button onclick="uploadFile()">
+      Upload & Replace Database
+    </button>
+  </div>
+
+</div>
+
+<script>
+
+// ---------------- MESSAGE ----------------
+function setMsg(text) {
+  document.getElementById("msg").innerText = text;
+}
+
+// ---------------- LOAD BANNER ----------------
+async function loadBanner() {
+  const res = await fetch("/banner");
+  const data = await res.json();
+  document.getElementById("banner").value = data.text || "";
+}
+
+loadBanner();
+
+// ---------------- SAVE BANNER ----------------
+async function saveBanner() {
+  const text = document.getElementById("banner").value;
+
+  const res = await fetch("/admin/banner", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+
+  const data = await res.json();
+  setMsg(data.message);
+}
+
+// ---------------- DOWNLOAD ----------------
+function downloadData() {
+  window.location.href = "/admin/export";
+}
+
+// ---------------- UPLOAD ----------------
+async function uploadFile() {
+  const file = document.getElementById("file").files[0];
+
+  if (!file) {
+    setMsg("Please select a file");
+    return;
+  }
+
+  const text = await file.text();
+
+  const res = await fetch("/admin/import", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: text
+  });
+
+  const data = await res.json();
+  setMsg(data.message);
+}
+
+</script>
+
+</body>
+</html>
