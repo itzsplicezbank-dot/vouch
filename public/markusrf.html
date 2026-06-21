@@ -10,7 +10,7 @@ body {
   margin: 0;
   background: #000;
   color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial;
   display: flex;
   justify-content: center;
   padding: 40px;
@@ -18,7 +18,6 @@ body {
 
 .container {
   width: 700px;
-  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -27,22 +26,20 @@ body {
 .card {
   background: #111;
   border: 1px solid #222;
-  border-radius: 12px;
   padding: 20px;
+  border-radius: 12px;
 }
 
 h1 {
   text-align: center;
-  margin: 0;
 }
 
 h2 {
-  margin-bottom: 10px;
-  font-size: 16px;
+  font-size: 15px;
   color: #ccc;
 }
 
-textarea, input[type="file"], input[type="text"] {
+textarea, input {
   width: 100%;
   padding: 12px;
   margin-top: 10px;
@@ -50,7 +47,6 @@ textarea, input[type="file"], input[type="text"] {
   color: #fff;
   border: 1px solid #333;
   border-radius: 8px;
-  outline: none;
 }
 
 button {
@@ -65,28 +61,18 @@ button {
   cursor: pointer;
 }
 
-button:hover {
-  opacity: 0.85;
-}
-
-.small-btn {
-  background: #1a1a1a;
-  color: #fff;
-  border: 1px solid #333;
-}
+button:hover { opacity: 0.85; }
 
 #msg {
   text-align: center;
-  font-size: 13px;
   color: #aaa;
-  min-height: 18px;
+  font-size: 13px;
 }
 
-.word-list {
+.list {
+  font-size: 12px;
+  color: #888;
   margin-top: 10px;
-  font-size: 13px;
-  color: #aaa;
-  line-height: 1.4;
   word-break: break-word;
 }
 </style>
@@ -96,158 +82,111 @@ button:hover {
 
 <div class="container">
 
-  <!-- HEADER -->
-  <div class="card">
-    <h1>Admin Panel</h1>
-    <div id="msg"></div>
-  </div>
+<div class="card">
+  <h1>Admin Panel</h1>
+  <div id="msg"></div>
+</div>
 
-  <!-- BANNER -->
-  <div class="card">
-    <h2>Live Banner Editor</h2>
+<div class="card">
+  <h2>Banner</h2>
+  <textarea id="banner"></textarea>
+  <button onclick="saveBanner()">Save</button>
+</div>
 
-    <textarea id="banner" rows="3" placeholder="Edit banner text..."></textarea>
+<div class="card">
+  <h2>Export</h2>
+  <button onclick="window.location='/admin/export'">Download data.txt</button>
+</div>
 
-    <button onclick="saveBanner()">Save Banner</button>
-  </div>
+<div class="card">
+  <h2>Import (RESET)</h2>
+  <input type="file" id="file">
+  <button onclick="upload()">Upload</button>
+</div>
 
-  <!-- EXPORT -->
-  <div class="card">
-    <h2>Export Database</h2>
+<div class="card">
+  <h2>Bad Words</h2>
 
-    <p style="font-size:12px;color:#777;">
-      Downloads full database as users.txt
-    </p>
+  <input id="word" placeholder="word">
 
-    <button class="small-btn" onclick="downloadData()">
-      Download users.txt
-    </button>
-  </div>
+  <button onclick="add()">Add</button>
+  <button onclick="remove()">Remove</button>
 
-  <!-- IMPORT -->
-  <div class="card">
-    <h2>Import users.txt (FULL RESET)</h2>
-
-    <p style="font-size:12px;color:#777;">
-      WARNING: This will replace all current data.
-    </p>
-
-    <input type="file" id="file" accept=".txt">
-
-    <button onclick="uploadFile()">
-      Upload & Replace Database
-    </button>
-  </div>
-
-  <!-- BAD WORDS -->
-  <div class="card">
-    <h2>Bad Words Filter</h2>
-
-    <input type="text" id="wordInput" placeholder="Enter word..." />
-
-    <button onclick="addWord()">Add Word</button>
-    <button onclick="removeWord()">Remove Word</button>
-
-    <div class="word-list" id="wordList">Loading...</div>
-  </div>
+  <div class="list" id="list"></div>
+</div>
 
 </div>
 
 <script>
 
-function setMsg(text) {
-  document.getElementById("msg").innerText = text;
+function msg(t){ document.getElementById("msg").innerText = t; }
+
+async function loadBanner(){
+  const r = await fetch("/banner");
+  const d = await r.json();
+  document.getElementById("banner").value = d.text;
 }
 
-/* ---------------- BANNER ---------------- */
-
-async function loadBanner() {
-  const res = await fetch("/banner");
-  const data = await res.json();
-  document.getElementById("banner").value = data.text || "";
-}
-
-async function saveBanner() {
+async function saveBanner(){
   const text = document.getElementById("banner").value;
 
-  const res = await fetch("/admin/banner", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text })
+  const r = await fetch("/admin/banner", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({text})
   });
 
-  const data = await res.json();
-  setMsg(data.message);
+  const d = await r.json();
+  msg(d.message);
+}
+
+async function upload(){
+  const f = document.getElementById("file").files[0];
+  const text = await f.text();
+
+  const r = await fetch("/admin/import", {
+    method:"POST",
+    headers:{"Content-Type":"text/plain"},
+    body:text
+  });
+
+  const d = await r.json();
+  msg(d.message);
+}
+
+async function loadWords(){
+  const r = await fetch("/admin/badwords");
+  const d = await r.json();
+
+  document.getElementById("list").innerText =
+    d.words.join(", ");
+}
+
+async function add(){
+  const word = document.getElementById("word").value;
+
+  await fetch("/admin/badwords/add", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({word})
+  });
+
+  loadWords();
+}
+
+async function remove(){
+  const word = document.getElementById("word").value;
+
+  await fetch("/admin/badwords/remove", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({word})
+  });
+
+  loadWords();
 }
 
 loadBanner();
-
-/* ---------------- EXPORT ---------------- */
-
-function downloadData() {
-  window.location.href = "/admin/export";
-}
-
-/* ---------------- IMPORT ---------------- */
-
-async function uploadFile() {
-  const file = document.getElementById("file").files[0];
-
-  if (!file) {
-    setMsg("Select a file first");
-    return;
-  }
-
-  const text = await file.text();
-
-  const res = await fetch("/admin/import", {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: text
-  });
-
-  const data = await res.json();
-  setMsg(data.message);
-}
-
-/* ---------------- BAD WORDS ---------------- */
-
-async function loadWords() {
-  const res = await fetch("/admin/badwords");
-  const data = await res.json();
-
-  document.getElementById("wordList").innerText =
-    "Current: " + (data.words.join(", ") || "none");
-}
-
-async function addWord() {
-  const word = document.getElementById("wordInput").value;
-
-  const res = await fetch("/admin/badwords/add", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ word })
-  });
-
-  await res.json();
-  document.getElementById("wordInput").value = "";
-  loadWords();
-}
-
-async function removeWord() {
-  const word = document.getElementById("wordInput").value;
-
-  const res = await fetch("/admin/badwords/remove", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ word })
-  });
-
-  await res.json();
-  document.getElementById("wordInput").value = "";
-  loadWords();
-}
-
 loadWords();
 
 </script>
