@@ -21,7 +21,7 @@ app.use("/admin/import", express.text({ type: "*/*", limit: "10mb" }));
 const db = new sqlite3.Database("./database.sqlite");
 
 /* ---------------- LIVE STATE ---------------- */
-let bannerText = "Welcome! Promote your stuff here.";
+let bannerText = "Welcome! Sprite Trade Info stuff here.";
 
 let BAD_WORDS = ["badword1", "badword2", "slurhere"];
 
